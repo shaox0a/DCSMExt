@@ -73,6 +73,7 @@ Scripts&Codes/
 ```
 Please make sure that these files are placed **directly inside** `AppData/` and `SimData/`, rather than inside an additional nested download folder.
 
+
 ## Remarks
 
 The current program works with:
@@ -88,23 +89,88 @@ Running the scripts requires installation of:
 - TensorFlow
 - the required TensorFlow-related packages in R
 
+
 ## Software installation
 
-### 1. Python environment
+The code has been tested with:
 
-*To be added.*
+- **Python 3.7.11**
+- **TensorFlow 2.11.0**
 
-### 2. TensorFlow installation
+Newer TensorFlow versions, such as `2.19.0`, may not be compatible.
 
-*To be added.*
+### 1. Install the required R packages
 
-### 3. R packages
+```r
+install.packages(c(
+  "reticulate",
+  "tensorflow",
+  "keras",
+  "tfprobability",
+  "dplyr",
+  "fields",
+  "maps",
+  "ggplot2",
+  "ggpubr",
+  "ggnewscale",
+  "elevatr",
+  "contoureR",
+  "RColorBrewer",
+  "this.path",
+  "gridExtra"
+))
+```
 
-*To be added.*
+### 2. Create a Python environment and install TensorFlow
 
-### 4. R-Python interface configuration
+Run the following commands in R:
 
-*To be added.*
+```r
+library(reticulate)
+
+py_version <- "3.7.11"
+path_to_python <- reticulate::install_python(version = py_version)
+
+reticulate::virtualenv_create(
+  envname = "dscext_tf211",
+  python = path_to_python,
+  version = py_version
+)
+
+reticulate::use_virtualenv("dscext_tf211", required = TRUE)
+
+tensorflow::install_tensorflow(
+  method = "virtualenv",
+  envname = "dscext_tf211",
+  version = "2.11.0"
+)
+
+keras::install_keras(
+  method = "virtualenv",
+  envname = "dscext_tf211",
+  version = "2.11.0"
+)
+
+reticulate::virtualenv_install(
+  envname = "dscext_tf211",
+  packages = "tensorflow-probability"
+)
+```
+
+### 3. Check that the installation works
+
+```r
+library(reticulate)
+library(tensorflow)
+library(keras)
+
+py_config()
+tf$constant("TensorFlow is available")
+keras::is_keras_available()
+```
+
+If these commands run without error, the environment is ready.
+
 
 ## How to start
 
