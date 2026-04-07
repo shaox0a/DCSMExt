@@ -84,6 +84,7 @@ if (model %in% c("r-Pareto", "AI")) {
     Cardiff = c(-3.179090, 51.481583)
     site_dist = rdist(S, matrix(Cardiff, ncol=2))
     site.index = which.min(site_dist)
+    risk_fun_raw = function(rep) { rep[site.index] }
     risk_fun = function(rep) { rep[1] }
   } else if (risk_type == "sum2") {
     xi0 = mean(mles.matrix[,3])
@@ -124,6 +125,15 @@ train_loc = df.train[,c("s1", "s2")]
 train_data = df.train[,3:ncol(df)]
 
 q <- 0.9; q1 <- 0.95
+# ------------------------------------------------
+# overall empirical extremal dependence measure estimates
+emp_extdep_filename = paste0(work_dir, app_data, "_", model, "_", risk_type, "_empextdep.rds")
+if (!file.exists(emp_extdep_filename)) {
+  if (risk_type == "site") { risk_fun1 = risk_fun_raw } else {risk_fun1 = risk_fun}
+  df_extdep_odist.emp = emp_extdep_est(df_data, df_loc, model, risk_fun1, q, q1)
+  saveRDS(df_extdep_odist.emp, emp_extdep_filename)
+}
+# ------------------------------------------------
 
 # # functional exceedances
 rexceed_obj = rexceed(train_data, risk_fun, q)
