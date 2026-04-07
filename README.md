@@ -132,27 +132,27 @@ py_version <- "3.7.11"
 path_to_python <- reticulate::install_python(version = py_version)
 
 reticulate::virtualenv_create(
-  envname = "dscext_tf211",
+  envname = "dcsmext",
   python = path_to_python,
   version = py_version
 )
 
-reticulate::use_virtualenv("dscext_tf211", required = TRUE)
+reticulate::use_virtualenv("dcsmext", required = TRUE)
 
 tensorflow::install_tensorflow(
   method = "virtualenv",
-  envname = "dscext_tf211",
+  envname = "dcsmext",
   version = "2.11.0"
 )
 
 keras::install_keras(
   method = "virtualenv",
-  envname = "dscext_tf211",
+  envname = "dcsmext",
   version = "2.11.0"
 )
 
 reticulate::virtualenv_install(
-  envname = "dscext_tf211",
+  envname = "dcsmext",
   packages = "tensorflow-probability"
 )
 ```
