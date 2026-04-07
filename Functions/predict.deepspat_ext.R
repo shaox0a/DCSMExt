@@ -1,3 +1,6 @@
+# d = d1
+# newloc = loc
+
 predict.deepspat_ext <- function(object, newloc, family, dtype = "float32", ...) {
 
   d <- object

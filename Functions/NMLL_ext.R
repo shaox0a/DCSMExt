@@ -1,3 +1,10 @@
+# transtheta_tf 
+# a_tf = layers[[LFTidx]]$pars
+# logphi_tf
+
+## -------------------- ##
+# The problem is here!
+## -------------------- ##
 lplike <- function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings, 
                    s_tf, x_tf, ndata, method, family = "nonsta",
                    extdep.emp_tf = NULL, sel.pairs_tf = NULL) {
@@ -20,6 +27,7 @@ lplike <- function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
         eta_tf[[i]] <- layers[[i]]$trans(transeta_tf[[i]]) # ensure positivity for some variables
         swarped_tf[[i + 1]] <- layers[[i]]$f(swarped_tf[[i]], eta_tf[[i]]) 
       }
+      # swarped_tf[[i + 1]] <- layers[[i]]$f(swarped_tf[[i]], eta_tf[[i]]) 
       scalings[[i + 1]] <- scale_lims_tf(swarped_tf[[i + 1]])
       swarped_tf[[i + 1]] <- scale_0_5_tf(swarped_tf[[i + 1]], scalings[[i + 1]]$min, scalings[[i + 1]]$max, dtype = dtype)
     }
@@ -29,9 +37,13 @@ lplike <- function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
   
   
   # ----------------------------------------------------------------------------
+  # D_in = tf$norm(tf$reshape(s_in, c(1L,nrow(s_in),2L)) - tf$reshape(s_in, c(nrow(s_in),1L,2L)),
+  #                ord='euclidean', axis=2L)
   
   phi_tf = tf$exp(logphi_tf)
   kappa_tf = 2*tf$sigmoid(logitkappa_tf)
+  
+  # nlpLike(c(as.numeric(phi_tf), as.numeric(kappa_tf)), as.matrix(rdist(s_in)), as.data.frame(as.matrix(x_tf)))
   
   sel.pairs_t_tf = tf$reshape(tf$transpose(sel.pairs_tf), c(2L, nrow(sel.pairs_tf), 1L))
   k1_tf = sel.pairs_t_tf[[0]]; k2_tf = sel.pairs_t_tf[[1]]
@@ -95,6 +107,7 @@ lplike <- function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
   Cost4 = -tf$reduce_sum(tf$math$log(V1_tf * V2_tf - V12_tf) - V_tf)
   Cost = Cost1 + Cost2 + Cost3 + Cost4
   
+  gc(full = TRUE)
   list(Cost = Cost)
 }
 
@@ -121,6 +134,7 @@ ECMSE = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
         eta_tf[[i]] <- layers[[i]]$trans(transeta_tf[[i]]) # ensure positivity for some variables
         swarped_tf[[i + 1]] <- layers[[i]]$f(swarped_tf[[i]], eta_tf[[i]]) 
       }
+      # swarped_tf[[i + 1]] <- layers[[i]]$f(swarped_tf[[i]], eta_tf[[i]]) 
       scalings[[i + 1]] <- scale_lims_tf(swarped_tf[[i + 1]])
       swarped_tf[[i + 1]] <- scale_0_5_tf(swarped_tf[[i + 1]], scalings[[i + 1]]$min, scalings[[i + 1]]$max, dtype = dtype)
     }
@@ -155,6 +169,9 @@ ECMSE = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
   
   Cost = tf$reduce_sum(weights_tf * tf$pow(tf$subtract(extdep.emp_tf, ec_tf), 2))
   
+  # Cost = tf$reduce_sum(tf$pow(tf$subtract(extdep.emp_tf, ec_tf), 2))
+  
+  gc(full = TRUE)
   list(Cost = Cost)
 }
 
@@ -182,6 +199,7 @@ GradScore = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
         eta_tf[[i]] <- layers[[i]]$trans(transeta_tf[[i]]) # ensure positivity for some variables
         swarped_tf[[i + 1]] <- layers[[i]]$f(swarped_tf[[i]], eta_tf[[i]]) 
       }
+      # swarped_tf[[i + 1]] <- layers[[i]]$f(swarped_tf[[i]], eta_tf[[i]]) 
       scalings[[i + 1]] <- scale_lims_tf(swarped_tf[[i + 1]])
       swarped_tf[[i + 1]] <- scale_0_5_tf(swarped_tf[[i + 1]], scalings[[i + 1]]$min, scalings[[i + 1]]$max, dtype = dtype)
     }
@@ -194,11 +212,13 @@ GradScore = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
   kappa_tf = 2*tf$sigmoid(logitkappa_tf)
   
   # ----------------------------------------------------------------------------
+  # sel.pairs_t_tf = tf$reshape(tf$transpose(sel.pairs_tf), c(2L, nrow(sel.pairs_tf), 1L))
   k1_tf = loc.pairs_t_tf[[0]]; k2_tf = loc.pairs_t_tf[[1]]
   
   s1.pairs_tf = tf$gather_nd(s_in, indices = k1_tf)
   s2.pairs_tf = tf$gather_nd(s_in, indices = k2_tf)
   diff.pairs_tf = tf$subtract(s1.pairs_tf, s2.pairs_tf)
+  # D.pairs_tf = tf$norm(diff.pairs_tf, ord='euclidean', axis = 1L)
   D.pairs_tf = tf$sqrt(tf$square(diff.pairs_tf[,1]) + tf$square(diff.pairs_tf[,2]))
   
   gamma.pairs_tf = tf$pow(D.pairs_tf/phi_tf, kappa_tf) #0.5*
@@ -211,6 +231,7 @@ GradScore = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
                                                              dense_shape=c(nloc, nloc)))
   gamma_tf = gamma.uptri_tf + tf$transpose(gamma.uptri_tf)
   
+  # D0_tf = tf$norm(s_in, ord='euclidean', axis=1L) 
   D0_tf = tf$sqrt(tf$square(s_in[,1]) + tf$square(s_in[,2]))
   gamma0_tf = tf$pow(D0_tf[D0_tf > 0]/phi_tf, kappa_tf) #0.5*
   indices0 = tf$where(D0_tf > 0)
@@ -245,6 +266,18 @@ GradScore = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
     tf$linalg$matmul(A_tf, tf$math$log(z_tf))/z_tf^2 +
     0.5/z_tf^2 * B_tf
   
+  # # weight_tf = z_tf*(1 - tf$math$exp(1 - tf$reduce_sum(z_tf, 0L)/u_tf))
+  # # dWeight_tf = 1 - tf$math$exp(1 - tf$reduce_sum(z_tf, 0L)/u_tf) * (1 - z_tf/u_tf)
+  # if (risk == "sum") {
+  #   rxuinv_tf = tf$reduce_sum(z_tf, 0L)/u_tf
+  #   drxuinv_tf = z_tf/u_tf
+  # } else if (risk == "site") {
+  #   
+  # }
+  # 
+  # weight_tf = z_tf*(1 - tf$math$exp(1 - rxuinv_tf))
+  # dWeight_tf = 1 - tf$math$exp(1 - rxuinv_tf) * (1 - drxuinv_tf)
+  
   weight_tf = weight_fun(z_tf)
   dWeight_tf = dWeight_fun(z_tf)
   
@@ -252,6 +285,7 @@ GradScore = function(logphi_tf, logitkappa_tf, transeta_tf, a_tf, scalings,
   Cost = tf$reduce_sum(2*weight_tf*dWeight_tf*gradient_tf + 
                          weight_tf^2*(diagHessian_tf + 0.5*gradient_tf^2)) / nexc
   
+  gc(full = TRUE)
   list(Cost = Cost)
 }
 

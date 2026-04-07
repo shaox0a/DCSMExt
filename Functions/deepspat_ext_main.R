@@ -1,3 +1,25 @@
+# f = as.formula(paste(paste(paste0("z", 1:(ncol(train_exc_all)-2)), collapse= "+"), "~ s1 + s2 -1"))
+# data = train_exc_all
+# layers = layers
+# method = method
+# family = family
+# dtype = dtype
+# nsteps = 50L
+# nsteps_pre = 50L
+# par_init = initvars()
+# # learn_rates = init_learn_rates(eta_mean = 0.02, vario = 0.01),
+# learn_rates = init_learn_rates(eta_mean = 0.1, eta_mean2 = 0.1, vario = 0.05)
+# sel.pairs = sel.pairs
+# extdep.emp = train_extdep.emp
+# risk = risk_fun
+# weight_fun = weight_fun
+# dWeight_fun = dWeight_fun
+# thre = threshold
+# default_dep = T
+# default_weight = T
+# showInfo = T
+# alpha = 1
+
 deepspat_ext <- function(f, data,
                          layers = NULL, 
                          method = c("ML", "EC", "GS"),
@@ -13,14 +35,14 @@ deepspat_ext <- function(f, data,
                          weight_fun = NULL, 
                          dWeight_fun = NULL, 
                          thre = NULL, 
-                         default_dep = T,
-                         default_weight = T, 
-                         logphi_tf = NULL,
-                         logitkappa_tf = NULL,
-                         transeta_tf = NULL,
-                         a_tf = NULL,
+                         # default_dep = T,
+                         # default_weight = T, 
+                         # logphi_tf = NULL,
+                         # logitkappa_tf = NULL,
+                         # transeta_tf = NULL,
+                         # a_tf = NULL,
                          alpha = 1,
-                         showInfo = T,
+                         showInfo = F,
                          ...) {
   ptm1 = Sys.time()
   
@@ -28,12 +50,16 @@ deepspat_ext <- function(f, data,
   stopifnot(is(data, "data.frame"))
   method = match.arg(method, c("ML", "EC", "GS"))
   mmat <- model.matrix(f, data)
-
+  # mmat = matrix(c(data$s1, data$s2), ncol = 2)
+  
   s_tf <- tf$constant(mmat, name = "s", dtype = dtype)
+  # should the rescaling be kept for the sta model?
   scalings <- list(scale_lims_tf(s_tf))
   s_tf <- scale_0_5_tf(s_tf, scalings[[1]]$min, scalings[[1]]$max, dtype) # rescaling
   
   depvar <- get_depvars_multivar3(f, ncol(data)-2) # return the variable name of the dependent variable.
+  # data_scale_mean <- mean(data[[depvar]])
+  # z_tf <- tf$constant(as.matrix(data[[depvar]] - data_scale_mean), name = 'z', dtype = 'float32') # centered data
   x_tf = tf$constant(as.matrix(data[, depvar]), name = 'z', dtype = dtype)
   ndata <- nrow(data)
   
@@ -45,10 +71,9 @@ deepspat_ext <- function(f, data,
   } else {u_tf = NULL}
   
   ## initialize dependence parameters
-  if (default_dep) {
-    logphi_tf = tf$Variable(par_init$variogram_logrange, name = "range", dtype = dtype)
-    logitkappa_tf = tf$Variable(par_init$variogram_logitdf, name = "DoF", dtype = dtype)
-  }
+  # if (default_dep) {}
+  logphi_tf = tf$Variable(par_init$variogram_logrange, name = "range", dtype = dtype)
+  logitkappa_tf = tf$Variable(par_init$variogram_logitdf, name = "DoF", dtype = dtype)
   
   
   if (family == "sta") {
@@ -77,6 +102,7 @@ deepspat_ext <- function(f, data,
     } else if (method == "ML") { 
       extdep.emp_tf = NULL 
       loc.pairs_t_tf = NULL
+      # sel.pairs_tf = tf$reshape(tf$constant(sel.pairs, dtype = tf$int32), c(nrow(sel.pairs), 2L, 1L))
       Cost_fn = function() {
         NMLL <- lplike(logphi_tf = logphi_tf, 
                        logitkappa_tf = logitkappa_tf,
@@ -122,11 +148,17 @@ deepspat_ext <- function(f, data,
       
     }
     
-    if (is.null(sel.pairs)){
-      sel.pairs = t(do.call("cbind", sapply(0:(nrow(data)-2), function(k1){
-        sapply((k1+1):(nrow(data)-1), function(k2){ c(k1,k2) } ) } ))) 
-      sel.pairs_tf = tf$reshape(tf$constant(sel.pairs, dtype = tf$int32), c(nrow(sel.pairs), 2L, 1L))
+    # if (is.null(sel.pairs)){
+    #   sel.pairs = t(do.call("cbind", sapply(0:(nrow(data)-2), function(k1){
+    #     sapply((k1+1):(nrow(data)-1), function(k2){ c(k1,k2) } ) } ))) 
+    # }
+    # sel.pairs_tf = tf$reshape(tf$constant(sel.pairs, dtype = tf$int32), c(nrow(sel.pairs), 2L, 1L))
+    if (is.null(sel.pairs)) {
+      sel.pairs <- t(utils::combn(nrow(data), 2L)) - 1L   # (nC2)×2, 0-based
+      storage.mode(sel.pairs) <- "integer"
     }
+    sel.pairs_tf <- tf$constant(sel.pairs, dtype = tf$int32)
+    sel.pairs_tf <- tf$expand_dims(sel.pairs_tf, axis = 2L) 
     
     trainvario = (tf$optimizers$Adam(learn_rates$vario))$minimize
     
@@ -157,6 +189,7 @@ deepspat_ext <- function(f, data,
       Objective[i] <- as.numeric(thisML)
       logphi_path[i] <- as.numeric(logphi_tf)
       logitkappa_path[i] <- as.numeric(logitkappa_tf)
+      gc(full = TRUE)
     }
     
     eta_tf = a_tf = NULL
@@ -174,17 +207,16 @@ deepspat_ext <- function(f, data,
     nlayers <- length(layers)
     
     # BRF & AWU parameters
-    if (default_weight) {
-      transeta_tf <- list()
-      if(nlayers > 1) for(i in 1:nlayers) { # (nlayers - 1)
-        layer_type <- layers[[i]]$name
-        if(layers[[i]]$fix_weights) {
-          transeta_tf[[i]] <- tf$constant(matrix(rep(par_init$transeta_mean_init[[layer_type]], layers[[i]]$r)),
-                                          name = paste0("eta", i), dtype = dtype)
-        } else {
-          transeta_tf[[i]] <- tf$Variable(matrix(rep(par_init$transeta_mean_init[[layer_type]], layers[[i]]$r)),
-                                          name = paste0("eta", i), dtype = dtype)
-        }
+    # if (default_weight) {}
+    transeta_tf <- list()
+    if(nlayers > 1) for(i in 1:nlayers) { # (nlayers - 1)
+      layer_type <- layers[[i]]$name
+      if(layers[[i]]$fix_weights) {
+        transeta_tf[[i]] <- tf$constant(matrix(rep(par_init$transeta_mean_init[[layer_type]], layers[[i]]$r)),
+                                        name = paste0("eta", i), dtype = dtype)
+      } else {
+        transeta_tf[[i]] <- tf$Variable(matrix(rep(par_init$transeta_mean_init[[layer_type]], layers[[i]]$r)),
+                                        name = paste0("eta", i), dtype = dtype)
       }
     }
     
@@ -270,11 +302,17 @@ deepspat_ext <- function(f, data,
       
     }
     
-    if (is.null(sel.pairs)){
-      sel.pairs = t(do.call("cbind", sapply(0:(nrow(data)-2), function(k1){
-        sapply((k1+1):(nrow(data)-1), function(k2){ c(k1,k2) } ) } ))) 
-      sel.pairs_tf = tf$reshape(tf$constant(sel.pairs, dtype = tf$int32), c(nrow(sel.pairs), 2L, 1L))
+    # if (is.null(sel.pairs)){
+    #   sel.pairs = t(do.call("cbind", sapply(0:(nrow(data)-2), function(k1){
+    #     sapply((k1+1):(nrow(data)-1), function(k2){ c(k1,k2) } ) } ))) 
+    # }
+    # sel.pairs_tf = tf$reshape(tf$constant(sel.pairs, dtype = tf$int32), c(nrow(sel.pairs), 2L, 1L))
+    if (is.null(sel.pairs)) {
+      sel.pairs <- t(utils::combn(nrow(data), 2L)) - 1L   # (nC2)×2, 0-based
+      storage.mode(sel.pairs) <- "integer"
     }
+    sel.pairs_tf <- tf$constant(sel.pairs, dtype = tf$int32)
+    sel.pairs_tf <- tf$expand_dims(sel.pairs_tf, axis = 2L) 
     
     trainvario = (tf$optimizers$Adam(learn_rates$vario))$minimize
     
@@ -296,14 +334,16 @@ deepspat_ext <- function(f, data,
     }
     
     if(nLFTlayers > 0) {
-      if (default_weight) { a_tf = layers[[LFTidx]]$pars }
+      # if (default_weight) {  }
+      a_tf = layers[[LFTidx]]$pars
       trainLFTpars <- (tf$optimizers$Adam(learn_rates$LFTpars))$minimize # 
     } else {a_tf = a_path = NULL}
     
     
     pre_bool = c(nRBF1layers > 0, nRBF2layers > 0, nLFTlayers > 0)
-    pre_count = 1*pre_bool[1] + sum(pre_bool[2:3])
-
+    pre_count = 1 + pre_bool[1] + pre_bool[3]  # + sum(pre_bool[2:3])
+    # pre_count = sum(pre_bool)
+    
     nsteps_all = nsteps+nsteps_pre*pre_count
     Objective <- rep(0, nsteps_all)
     
@@ -319,25 +359,31 @@ deepspat_ext <- function(f, data,
       negcostname <- "GradScore"
     }
     
+    count = 0
     cat("Learning weight parameters and dependence parameters in turn... \n")
     for(i in 1:(nsteps_pre*pre_count)) { # nsteps
-      # message(i)
-      if (pre_bool[1] & i <= nsteps_pre*1*pre_bool[1]) { 
-        # message("traineta_mean")
+      message(i)
+      if (pre_bool[1] & i <= nsteps_pre*(1+pre_bool[1]) & i > nsteps_pre) { 
+        message("traineta_mean")
         traineta_mean(Cost_fn, var_list = transeta_tf[c(AWUidx, RBF1idx)]) 
       }
       
-      if (pre_bool[2] & i <= nsteps_pre*(1*pre_bool[1]+pre_bool[2]) &
-          i > nsteps_pre*1*pre_bool[1]) { 
-        # message("traineta_mean2")
-        traineta_mean2(Cost_fn, var_list = transeta_tf[RBF2idx]) 
-      } 
+      # if (pre_bool[2] & i <= nsteps_pre*(1*pre_bool[1]+pre_bool[2]) &
+      #     i > nsteps_pre*1*pre_bool[1]) { 
+      #   message("traineta_mean2")
+      #   traineta_mean2(Cost_fn, var_list = transeta_tf[RBF2idx]) 
+      # } 
       
-      if (pre_bool[3] & i <= nsteps_pre*(1*pre_bool[1]+pre_bool[2]+pre_bool[3]) &
-          i > nsteps_pre*(1*pre_bool[1]+pre_bool[2])) { 
-        # message("trainLFTpars")
-        trainLFTpars(Cost_fn, var_list = a_tf) 
-      } 
+      # if (pre_bool[3] & i <= nsteps_pre*(pre_bool[1]+pre_bool[2]+pre_bool[3]) &
+      #     i > nsteps_pre*(pre_bool[1]+pre_bool[2])) { 
+      #   message("trainLFTpars")
+      #   trainLFTpars(Cost_fn, var_list = a_tf) 
+      # } 
+      if (pre_bool[3] & i <= nsteps_pre*(1+pre_bool[1]+pre_bool[3]) &
+          i > nsteps_pre*(1+pre_bool[1])) {
+        message("trainLFTpars")
+        trainLFTpars(Cost_fn, var_list = a_tf)
+      }
       
       trainvario(Cost_fn, var_list = c(logphi_tf, logitkappa_tf))
       # ===========================================
@@ -355,11 +401,13 @@ deepspat_ext <- function(f, data,
       if (nLFTlayers > 0) a_path[,i] <- sapply(1:8, function(j) as.numeric(a_tf[[j]]))
       logphi_path[i] <- as.numeric(logphi_tf)
       logitkappa_path[i] <- as.numeric(logitkappa_tf)
+      count = count + 1
+      gc(full = TRUE)
     }
     
     cat("Updating everything... \n")
-    for(i in 1:nsteps+nsteps_pre*pre_count) { # (2*nsteps + 1):(3 * nsteps)
-      # message(i)
+    for(i in count + 1:nsteps) { # (2*nsteps + 1):(3 * nsteps)
+      message(i)
       if (nRBF1layers > 0) {
         traineta_mean(Cost_fn, var_list = transeta_tf[c(AWUidx, RBF1idx)])
       }
@@ -384,6 +432,7 @@ deepspat_ext <- function(f, data,
       if (nLFTlayers > 0) a_path[,i] <- sapply(1:8, function(j) as.numeric(a_tf[[j]]))
       logphi_path[i] <- as.numeric(logphi_tf)
       logitkappa_path[i] <- as.numeric(logitkappa_tf)
+      gc(full = TRUE)
     }
     
     
@@ -435,8 +484,11 @@ deepspat_ext <- function(f, data,
     }
     
     deppar = tf$Variable(c(exp(logphi_tf), 2*tf$sigmoid(logitkappa_tf)))
+    # with tf.GradientTape(persistent=True)
     with (tf$GradientTape(persistent=T) %as% tape1, {
+      # tape1$watch(deppar)
       with (tf$GradientTape(persistent=T) %as% tape2, {
+        # tape2$watch(deppar)
         loss = Cost_fn1(deppar)
       })
       grad_loss = tape2$gradient(loss, deppar)
@@ -469,6 +521,7 @@ deepspat_ext <- function(f, data,
                        method = method,
                        risk = risk,
                        family = family,
+                       alpha = alpha,
                        nlayers = nlayers,
                        weight_fun = weight_fun,
                        dWeight_fun = dWeight_fun,
@@ -480,7 +533,26 @@ deepspat_ext <- function(f, data,
                        hess_loss = hess_loss,
                        time = ptm)
   
+  gc(full = TRUE)
   class(deepspat.obj) <- "deepspat"
   deepspat.obj
 }
+
+
+# logphi_tf = d1$logphi_tf, 
+# logitkappa_tf = d1$logitkappa_tf,
+# transeta_tf = d1$transeta_tf,
+# a_tf = d1$a_tf,
+# scalings = d1$scalings,
+# s_tf = d1$s_tf, 
+# z_tf = d1$z_tf,
+# u_tf = d1$u_tf, *
+# loc.pairs_t_tf = d1$loc.pairs_t_tf, *
+# ndata = d1$ndata,
+# method = d1$method,
+# risk = d1$risk,
+# family = d1$family,
+# weight_fun = d1$weight_fun,
+# dWeight_fun = d1$dWeight_fun
+
 

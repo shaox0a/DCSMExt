@@ -1,11 +1,11 @@
-rexceed = function(data, risk_fun) {
+rexceed = function(data, risk_fun, q) {
   func_risk = apply(data, 2, risk_fun)
   threshold <- quantile(as.numeric(func_risk), q)
   id_exc = which(func_risk > threshold)
   rep_exc <- as.matrix(data[,id_exc])
   list(id_exc = id_exc, 
        id_order = order(func_risk,decreasing = T),
-       rep_exc_sort = sort(rep_exc,decreasing = T),
+       # rep_exc_sort = sort(rep_exc,decreasing = T),
        rep_exc = rep_exc,
        threshold = threshold)
 }

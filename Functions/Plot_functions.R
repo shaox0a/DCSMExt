@@ -2,7 +2,7 @@ library(RColorBrewer)
 library(ggplot2)
 
 myplot = function(x, loc, title = "", xlab = "longitude", ylab = "latitude", 
-                  legend_title = "", lims = NULL,
+                  legend_title = "", lims = NULL, shape = 15,
                   colors = RColorBrewer::brewer.pal(n=9, name="Blues")[9:1]) {
   if (is.null(lims)) {
     lims <- c(min(x), max(x))
@@ -16,7 +16,7 @@ myplot = function(x, loc, title = "", xlab = "longitude", ylab = "latitude",
       alpha = 0.9,
       # size = 0.05
       size = 2,
-      shape = 15
+      shape = shape
     ) +
     scale_color_gradientn(colors = colors, 
                           limits = lims,

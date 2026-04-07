@@ -54,3 +54,32 @@ stand_margins = function(data, mles.matrix = NULL, q = 0.95, scheme = "GPD"){
   normalized_data
 }
 
+
+# if(frechet == TRUE){
+#   # Use empirical cdf below the threshold
+#   normalized_database[i, cases.below.thr] <- -1 / log(empiricalCdf(data[i, cases.below.thr]))
+#   # Use estimated GP distribution above the threshold
+#   normalized_database[i, cases.above.thr] <-
+#     -1 / log(1 - (1 - q) * (1 + shapes*(data[i, cases.above.thr] - thr) / scales)^(-1 / shapes))
+# } else {
+#   # Use empirical cdf below the threshold
+#   normalized_database[i, cases.below.thr] <- 1 / (1 - empiricalCdf(data[i, cases.below.thr])) #- 1
+#   # Use estimated GP distribution above the threshold
+#   normalized_database[i, cases.above.thr] <-
+#     1 /  ((1 - q) * (1 + shapes*(data[i, cases.above.thr] - thr) / scales)^(-1 / shapes)) #- 1
+# }
+
+
+# data.unitp1 = matrix(NaN, nrow = dim(data)[1], ncol = dim(data)[2])
+# for (i in 1:nrow(data)) {
+#   print(i)
+#   cases.below.thr <- which(data[i, ] < mles.matrix[i, 1])
+#   cases.above.thr <- setdiff(1:ncol(data), cases.below.thr)
+#   unif.alldata <- rank(data[i, ], ties.method = "random") / (ncol(data) + 1)
+#   out <- rep(NA, ncol(data))
+#   out[cases.below.thr] <- 1 / (1 - unif.alldata[cases.below.thr])
+#   out[cases.above.thr] <- 1 / (1 - length(cases.below.thr) / (ncol(data) + 1)) /
+#     (1 - pgpd(data[i, cases.above.thr], xi = mles.matrix[i, 3],
+#               mu = mles.matrix[i, 1], beta = mles.matrix[i, 2]))
+#   data.unitp1[i,] = out
+# }

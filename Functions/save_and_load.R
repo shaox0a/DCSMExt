@@ -1,4 +1,7 @@
 to_save = function(d1_save) {
+  # LFT is assumed to have
+  # d1_save$layers[[d1_save$nlayers]]$pars = sapply(1:8, function(i) as.numeric(d1_save$layers[[d1_save$nlayers]]$pars[[i]]))
+  
   d1_save$Cost = as.numeric(d1_save$Cost)
   
   if (!is.null(d1_save$transeta_tf)) {

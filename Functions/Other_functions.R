@@ -218,6 +218,7 @@ bisquares1D <- function(r = 30, lims = c(-0.5, 0.5), dtype = "float32") {
   
   list(list(f = f,
             r = r,
+            names = "bisquares",
             knots_tf = knots_tf))
   
 }
@@ -240,7 +241,7 @@ bisquares2D <- function(r = 30, lims = c(-0.5, 0.5), dtype = "float32") {
   
   f <- function(s_tf, eta_tf = NULL) {
     ## Evaluate basis functons on warped locations
-    PHI_tf <- bisquare2D_tf(s_tf, theta_tf)
+    PHI_tf <- bisquare2D_tf(s_tf, theta_tf, dtype)
     if(is.null(eta_tf)) {
       PHI_tf
     } else {
@@ -257,6 +258,7 @@ bisquares2D <- function(r = 30, lims = c(-0.5, 0.5), dtype = "float32") {
   list(list(f = f,
             fR = fR,
             r = r,
+            names = "bisquares",
             knots = knots2D,
             knots_tf = knots2D_tf))
 }
@@ -827,6 +829,57 @@ polygons_from_points1 <- function(df, every = 3) {
   }
   data.table::rbindlist(cells)
 }
+
+
+polygons_from_points_color <- function(df, every = 3,
+                                       xvar = "swarp1", yvar = "swarp2",
+                                       zvar = "relative_sw_err_std",
+                                       zfun = function(z) mean(z, na.rm = TRUE)) {
+  stopifnot(all(c("s1c","s2c") %in% names(df)))
+  stopifnot(all(c(xvar, yvar, zvar) %in% names(df)))
+  
+  s1c <- s2c <- NULL
+  
+  df_use <- df %>%
+    filter((s1c %% every == 0) & (s2c %% every == 0))
+  
+  cells <- list()
+  count <- 0L
+  
+  for (i in seq_len(nrow(df_use))) {
+    this_centroid <- df_use[i, ]
+    
+    d <- df_use %>%
+      filter((s1c - this_centroid$s1c) <  (every + 1) & (s1c - this_centroid$s1c) >= 0,
+             (s2c - this_centroid$s2c) <  (every + 1) & (s2c - this_centroid$s2c) >= 0)
+    
+    if (nrow(d) == 4) {
+      count <- count + 1L
+      
+      min_s1c <- min(d$s1c); max_s1c <- max(d$s1c)
+      min_s2c <- min(d$s2c); max_s2c <- max(d$s2c)
+      
+      idx1 <- which(d$s1c == min_s1c & d$s2c == min_s2c)[1]  # LL
+      idx2 <- which(d$s1c == max_s1c & d$s2c == min_s2c)[1]  # LR
+      idx3 <- which(d$s1c == max_s1c & d$s2c == max_s2c)[1]  # UR
+      idx4 <- which(d$s1c == min_s1c & d$s2c == max_s2c)[1]  # UL
+      
+      z_cell <- zfun(d[[zvar]])
+      
+      this_cell <- data.frame(
+        x  = d[[xvar]][c(idx1, idx2, idx3, idx4)],
+        y  = d[[yvar]][c(idx1, idx2, idx3, idx4)],
+        id = count,
+        z  = z_cell
+      )
+      
+      cells[[count]] <- this_cell
+    }
+  }
+  
+  data.table::rbindlist(cells)
+}
+
 
 
 

@@ -1,17 +1,17 @@
 ################################################################################
-# varioFunc = function(theta, D.hat){ 2*(D.hat/theta[1])^theta[2] }
-simulMSP = function(s_in, range, dof, D, Trep, B){
-  npro = nrow(D)
-  vario = 2*(D/range)^dof
+# varioFunc = function(theta, dist_mat.hat){ 2*(dist_mat.hat/theta[1])^theta[2] }
+simulMSP = function(s_in, range, smoo, dist_mat, Trep, B){
+  npro = nrow(dist_mat)
+  vario = 2*(dist_mat/range)^smoo
   semivario = vario/2
   dist2ori = sapply(1:npro, function(ii) norm(s_in[ii,], "2")) # origin is zero
-  semivario2ori = (dist2ori/range)^dof
+  semivario2ori = (dist2ori/range)^smoo
   covmat = matrix(semivario2ori, npro, npro) +
     matrix(semivario2ori, npro, npro, byrow = T) - semivario
   diag(covmat) = 2*semivario2ori + 1e-8
   
   Z.sim <- sapply(1:Trep, function(n){
-    # print(n)
+    print(n)
     PPPn <- cumsum(rexp(B))
     iPPPn = -log(PPPn)
     GPn = t(rmvnorm(n=B, mean=rep(0, npro), sigma=covmat, method="chol"))
@@ -22,10 +22,11 @@ simulMSP = function(s_in, range, dof, D, Trep, B){
 }
 
 
-simulrPareto <- function(n, loc, range, dof, D, risk, siteindex = NULL, nCores = 1, cl = NULL){
+simulrPareto <- function(n, loc, range, smoo, dist_mat, risk, 
+                         siteindex = NULL, shape0 = NULL, nCores = 1, cl = NULL){
   # n = trep; loc = data.frame(swarped)
   # phi = phi; kappa = kappa
-  # D = as.matrix(dist(swarped))
+  # dist_mat = as.matrix(dist(swarped))
   # nCores = 1; cl = NULL
   
   if(!inherits(loc, "data.frame")) {
@@ -43,7 +44,7 @@ simulrPareto <- function(n, loc, range, dof, D, risk, siteindex = NULL, nCores =
   
   # semivario
   gamma <- tryCatch({
-    (D/range)^dof # 0.5*
+    (dist_mat/range)^smoo # 0.5*
   }, warning = function(war) {
     war
   }, error = function(err) {
@@ -75,7 +76,7 @@ simulrPareto <- function(n, loc, range, dof, D, risk, siteindex = NULL, nCores =
     sims = matrix(NaN, nrow = nrow(loc), ncol = n)
     
     for (i in 1:n){
-      # print(i)
+      print(i)
       W <- exp(GP[,i] - GP[siteindex,i] - gamma[,siteindex])
       Z <- evd::rgpd(1, loc=1, scale=1, shape=1) * W
       Z[Z == 0] = .Machine$double.xmin
@@ -89,7 +90,7 @@ simulrPareto <- function(n, loc, range, dof, D, risk, siteindex = NULL, nCores =
     sims = matrix(NaN, nrow = nrow(loc), ncol = n)
     
     for (i in 1:n){
-      # print(i)
+      print(i)
       W <- exp(GP[,i] - GP[k[i],i] - gamma[,k[i]])
       Z <- evd::rgpd(1, loc=1, scale=1, shape=1) * W / mean(W)
       Z[Z == 0] = .Machine$double.xmin
@@ -102,9 +103,27 @@ simulrPareto <- function(n, loc, range, dof, D, risk, siteindex = NULL, nCores =
     sims = matrix(NaN, nrow = nrow(loc), ncol = n)
     
     for (i in 1:n){
-      # print(i)
+      print(i)
       Z = rep(0, nrow(loc)); M = nrow(loc)
       while (sum(Z)<M) {
+        GP <- numeric(d)
+        GP[-1] <- t(chol.mat)%*%rnorm(d-1)
+        W <- exp(GP - GP[k[i]] - gamma[,k[i]])
+        Z <- evd::rgpd(1, loc=1, scale=1, shape=1) * W / mean(W)
+        Z[Z == 0] = .Machine$double.xmin
+      }
+      
+      sims[,i] = Z/M
+    }
+  } else if (risk == "rescaled sum") { 
+    # rejection method
+    k = sample(1:dim, n, replace = TRUE)
+    sims = matrix(NaN, nrow = nrow(loc), ncol = n)
+    
+    for (i in 1:n){
+      print(i)
+      Z = rep(0, nrow(loc)); M = nrow(loc)
+      while ((sum(Z^shape0)^{1/shape0})<M) {
         GP <- numeric(d)
         GP[-1] <- t(chol.mat)%*%rnorm(d-1)
         W <- exp(GP - GP[k[i]] - gamma[,k[i]])
@@ -120,7 +139,7 @@ simulrPareto <- function(n, loc, range, dof, D, risk, siteindex = NULL, nCores =
     sims = matrix(NaN, nrow = nrow(loc), ncol = n)
     
     for (i in 1:n){
-      # print(i)
+      print(i)
       Z = rep(0, nrow(loc)); M = nrow(loc)
       while ((sum(Z^20)^{1/20})<M) {
         GP <- numeric(d)
@@ -256,12 +275,12 @@ sim_data <- function(type = "Identical", model = "MSP-BR", ds = 0.001, n_obs = 3
     f_true = matrix(evd::rgpd(nrow(s_in)*trep, loc=1, scale=1, shape=1), 
                     nrow = nrow(s_in), ncol = trep)
   } else if (model == "MSP-BR") {
-    f_true = simulMSP(s_in = s_in, range = phi, dof = kappa, D = as.matrix(dist(swarped)), 
+    f_true = simulMSP(s_in = s_in, range = phi, smoo = kappa, dist_mat = as.matrix(dist(swarped)), 
                       Trep = trep, B = 10000)
   } else if (model == "r-Pareto") {
     f_true = simulrPareto(n = trep, loc = data.frame(swarped),
-                          range = phi, dof = kappa,
-                          D = as.matrix(dist(swarped)),
+                          range = phi, smoo = kappa,
+                          dist_mat = as.matrix(dist(swarped)),
                           risk = risk, siteindex = siteindex, 
                           nCores = nCores, cl = cl)
   } 
@@ -289,3 +308,65 @@ sim_data <- function(type = "Identical", model = "MSP-BR", ds = 0.001, n_obs = 3
 }
 
 
+
+# else if (type == "AWU_RBF_LFT_2D") {
+#   r1 <- 50
+#   
+#   a <- rnorm(1) + rnorm(1)*1i
+#   b <- rnorm(1) + rnorm(1)*1i
+#   c <- (rnorm(1) + rnorm(1)*1i)
+#   d <- (rnorm(1) + rnorm(1)*1i)
+#   LFT.pmt = list(a, b, c, d)
+#   stopifnot((Re(-d/c) < -0.5 | Re(-d/c) > 0.5 | Im(-d/c) < -0.5 | Im(-d/c) > 0.5))
+#   
+#   layers <- c(AWU(r = r1, dim = 1L, grad = 200, lims = c(-0.5, 0.5)),
+#               AWU(r = r1, dim = 2L, grad = 200, lims = c(-0.5, 0.5)),
+#               RBF_block(res = 1L),
+#               LFT(a = c(a,b,c,d)))
+#   nlayers <- length(layers)
+#   eta <- list()
+#   eta[[1]] <- sin(seq(0, pi, length.out = r1))
+#   eta[[2]] <- c(1, rep(0, r1-1))
+#   for(j in 3:(nlayers-1)) eta[[j]] <- runif(n = 1, min = -1, max = exp(3/2)/2)
+#   # eta[[1]] <- sin(seq(0, pi, length.out = r1))
+#   # eta[[2]] <- cos(seq(0, pi/2, length.out = r1))
+#   # for(j in 3:(nlayers - 1)) eta[[j]] <- runif(n = 1, min = -1, max = exp(3/2)/2)
+#   
+#   for(i in 1: (nlayers)){ # nlayers - 1 ???
+#     if (layers[[i]]$name == "LFT") {
+#       swarped <- layers[[i]]$fR(swarped, LFT.pmt) %>% scal_0_5_mat()
+#     } else { swarped <- layers[[i]]$fR(swarped, eta[[i]]) %>% scal_0_5_mat() }
+#   }
+#   
+#   s_in = swarped
+# }
+
+# else if(type == "AWU_RBF2_LFT_2D") {
+#   r1 <- 50
+#   
+#   a <- rnorm(1) + rnorm(1)*1i
+#   b <- rnorm(1) + rnorm(1)*1i
+#   c <- (rnorm(1) + rnorm(1)*1i)
+#   d <- (rnorm(1) + rnorm(1)*1i)
+#   LFT.pmt = list(a, b, c, d)
+#   stopifnot((Re(-d/c) < -0.5 | Re(-d/c) > 0.5 | Im(-d/c) < -0.5 | Im(-d/c) > 0.5))
+#   
+#   layers <- c(AWU(r = r1, dim = 1L, grad = 200, lims = c(-0.5, 0.5)),
+#               AWU(r = r1, dim = 2L, grad = 200, lims = c(-0.5, 0.5)),
+#               RBF_block(res = 1L),
+#               RBF_block(res = 2L),
+#               LFT(a = c(a,b,c,d)))
+#   nlayers <- length(layers)
+#   eta <- list()
+#   eta[[1]] <- sin(seq(0, pi, length.out = r1))
+#   eta[[2]] <- cos(seq(0, pi/2, length.out = r1))
+#   for(j in 3:(nlayers - 1)) eta[[j]] <- runif(n = 1, min = -1, max = exp(3/2)/2)
+#   
+#   for(i in 1: (nlayers - 1)){
+#     if (layers[[i]]$name == "LFT") {
+#       swarped <- layers[[i]]$fR(swarped, LFT.pmt) %>% scal_0_5_mat()
+#     } else { swarped <- layers[[i]]$fR(swarped, eta[[i]]) %>% scal_0_5_mat() }
+#   }
+#   
+#   s_in = swarped
+# } 
