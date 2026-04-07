@@ -70,7 +70,7 @@ df_loc = dplyr::select(df, s1, s2)
 df_data = df[,3:ncol(df)]
 
 model = "r-Pareto" 
-sel.pairs = obs_extdep.emp = risk = weight_fun = dWeight_fun = NULL
+sel.pairs = train_extdep.emp = risk = weight_fun = dWeight_fun = NULL
 
 risk_type = "max"           # "max", "sum2", or "site"
 if (model %in% c("r-Pareto", "AI")) {
@@ -90,6 +90,7 @@ if (model %in% c("r-Pareto", "AI")) {
     risk_fun = function(rep) { sum(rep^xi0)^{1/xi0} }
   }
 }
+
 # ---------
 # ## POT stability checking: r(Zt) - Zt/r(Zt)
 # data_to_check = df_data
@@ -104,47 +105,51 @@ if (model %in% c("r-Pareto", "AI")) {
 # RNGkind(sample.kind = "Rounding")
 seedn1 = 1
 set.seed(seedn1)
-D_obs = 2000
+D_obs = 2500
+D_train = 2000
 
 if (risk_type == "site") {
   # In this case, we include the site of interest in the observation set 
   # In this way, we no longer need to include the site index for deepspat_ext
-  sam1 <- c(site.index, sample((1:nrow(df))[-site.index], D_obs-1))
+  sam0 <- c(site.index, sample((1:nrow(df))[-site.index], D_obs-1))
+  sam1 = c(site.index, sample(sam0[-1], D_train-1))
 } else {
-  sam1 <- sample(1:nrow(df), D_obs)
+  sam0 <- sample(1:nrow(df), D_obs)
+  sam1 = sample(sam0, D_train)
 }
 
-df.obs <- df[sam1,]
-obs_loc = df.obs[,c("s1", "s2")]
-obs_data = df.obs[,3:ncol(df)]
+df.obs = df[sam0,]
+df.train <- df[sam1,]
+train_loc = df.train[,c("s1", "s2")]
+train_data = df.train[,3:ncol(df)]
 
 q <- 0.9; q1 <- 0.95
 
 # # functional exceedances
-rexceed_obj = rexceed(obs_data, risk_fun)
-obs_exc = rexceed_obj$rep_exc
+rexceed_obj = rexceed(train_data, risk_fun, q)
+train_exc = rexceed_obj$rep_exc
 threshold = rexceed_obj$threshold
-# func_x = apply(obs_data, 2, risk_fun)
+# func_x = apply(train_data, 2, risk_fun)
 # threshold <- quantile(as.numeric(func_x), q)
-# obs_exc <- as.matrix(obs_data[,which(func_x > threshold)])
+# train_exc <- as.matrix(train_data[,which(func_x > threshold)])
 
-obs_exc_all <- cbind(obs_loc, obs_exc) %>% as.data.frame() # 
-names(obs_exc_all) = c("s1", "s2", paste0("z", 1:(ncol(obs_exc_all)-2)))
+train_exc_all <- cbind(train_loc, train_exc) %>% as.data.frame() # 
+names(train_exc_all) = c("s1", "s2", paste0("z", 1:(ncol(train_exc_all)-2)))
 
 
 method = "EC"
 family = "nonsta"
 dtype = "float64"
+alpha = 100
 
 
-obs_extdep_odist.emp = emp_extdep_est(obs_data, obs_loc, model, risk_fun, q, q1)
+train_extdep_odist.emp = emp_extdep_est(train_data, train_loc, model, risk_fun, q, q1)
+stplen = c(0.05, 0.05, 0.02, 0.05)
 if (method == "EC") {
-  obs_extdep.emp = 2 - obs_extdep_odist.emp[,1]
-  stplen = c(0.02, 0.01, 0.01)
+  train_extdep.emp = 2 - train_extdep_odist.emp[,1]
 } else if (method == "GS") {
   weight_fun = WEIGHTS(risk_type, xi0)$weight_fun
   dWeight_fun = WEIGHTS(risk_type, xi0)$dWeight_fun
-  stplen = c(0.1, 0.1, 0.01)
 }
 
 
@@ -175,32 +180,34 @@ if (layer_structure == "_layer1") {
 }  
 
 
-d1 <- deepspat_ext(f = as.formula(paste(paste(paste0("z", 1:(ncol(obs_exc_all)-2)), collapse= "+"), "~ s1 + s2 -1")),
-                   data = obs_exc_all,
+d1 <- deepspat_ext(f = as.formula(paste(paste(paste0("z", 1:(ncol(train_exc_all)-2)), collapse= "+"), "~ s1 + s2 -1")),
+                   data = train_exc_all,
                    layers = layers,
                    method = method,
                    family = family,
                    dtype = dtype,
-                   nsteps = 150L,
-                   nsteps_pre = 100L,
+                   nsteps = 200L,
+                   nsteps_pre = 50L,
                    par_init = initvars(),
-                   learn_rates = init_learn_rates(eta_mean = stplen[1], eta_mean2 = stplen[2], vario = stplen[3]),
+                   learn_rates = init_learn_rates(eta_mean = stplen[1], eta_mean2 = stplen[2], 
+                                                  vario = stplen[3], LFTpars = stplen[4]),
                    sel.pairs = sel.pairs,
-                   extdep.emp = obs_extdep.emp,
+                   extdep.emp = train_extdep.emp,
                    risk = risk_fun,
                    weight_fun = weight_fun,
                    dWeight_fun = dWeight_fun,
-                   thre = threshold
+                   thre = threshold,
+                   alpha = alpha
 )
 
 d1_save = to_save(d1)
 saveRDS(list(d1 = d1_save,
              df = df,
-             df.obs = df.obs,
+             df.train = df.train,
              risk_fun = risk_fun,
              xi0 = xi0,
              q = q, q1 = q1), file = paste0("AppData/FittedModel_", app_data, "_", model,
-                                   "_", method, "_", family, "_", risk_type, "_", D_obs, ".rds"))
+                                   "_", method, "_", family, "_", risk_type, "_", D_train, ".rds"))
 
 ################################################################################
 # Summary
@@ -230,7 +237,6 @@ left = seq(poles[4,2], poles[1,2], -0.1)
 left = cbind(rep(poles[4,1], length(left)), left)
 edges = rbind(bottom, right, top, left)
 boundary = rbind(edges, edges[1,])
-plot(boundary, type="l")
 # --------------------------------------------
 
 # cities
@@ -319,8 +325,8 @@ text.size = 5
 library(ggplot2)
 library(ggpubr)
 library(ggnewscale)
-library(gird)
-library(girdExtra)
+library(grid)
+library(gridExtra)
 pic_path0 = "AppData/Pic/"
 if (!dir.exists(pic_path0)) {dir.create(pic_path0)}
 pic_path = paste0(pic_path0, risk_type, "/")
@@ -499,31 +505,31 @@ ggsave(paste0(pic_path, method, "_", family, layer_structure, "_fitextdep.pdf"),
 
 # pairwise CEPs against distance
 # ------------------------------------------------
-obs_loc.rescaled = predict.deepspat_ext(d1, obs_loc, family, dtype = dtype)$srescaled
-obs_loc.warped = as.matrix(d1$swarped)
+train_loc.rescaled = predict.deepspat_ext(d1, train_loc, family, dtype = dtype)$srescaled
+train_loc.warped = as.matrix(d1$swarped)
 
-dist_obs = rdist(obs_loc.rescaled); dist_warped = rdist(obs_loc.warped)
-D0 = nrow(obs_loc.rescaled)
-dist_obs.pairs = dist_warped.pairs = numeric(length = (D0-1)*D0/2)
+dist_train = rdist(train_loc.rescaled); dist_warped = rdist(train_loc.warped)
+D0 = nrow(train_loc.rescaled)
+dist_train.pairs = dist_warped.pairs = numeric(length = (D0-1)*D0/2)
 k=1
 for (i in 1:(D0-1)) { for (j in (i+1):D0) {
-  dist_obs.pairs[k] = dist_obs[i,j]; dist_warped.pairs[k] = dist_warped[i,j]
+  dist_train.pairs[k] = dist_train[i,j]; dist_warped.pairs[k] = dist_warped[i,j]
   k=k+1
 }}
 
-df_cloud = data.frame(CEP=obs_extdep_odist.emp[,1], 
-                      distance_o=dist_obs.pairs,
+df_cloud = data.frame(CEP=train_extdep_odist.emp[,1], 
+                      distance_o=dist_train.pairs,
                       distance_w=dist_warped.pairs)
 df.line.warped = data.frame(x = seq(0,1.4,0.01),
                             y = sapply(seq(0,1.4,0.01), function(i) 2-EC_fun(c(range_fitted, dof_fitted), i)))
 
 df_cloud_extend = df_cloud
-df_cloud_extend$line_o = sapply(df_cloud_extend$distance_o, 
-                                function(i) 2-EC_fun(c(range_fitted0, dof_fitted0), i))
+# df_cloud_extend$line_o = sapply(df_cloud_extend$distance_o, 
+#                                 function(i) 2-EC_fun(c(range_fitted0, dof_fitted0), i))
 df_cloud_extend$line_w = sapply(df_cloud_extend$distance_w, 
                                 function(i) 2-EC_fun(c(range_fitted, dof_fitted), i))
 
-mean(abs(df_cloud_extend$CEP - df_cloud_extend$line_o))
+# mean(abs(df_cloud_extend$CEP - df_cloud_extend$line_o))
 mean(abs(df_cloud_extend$CEP - df_cloud_extend$line_w))
 
 allow <- 0.05

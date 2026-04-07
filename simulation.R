@@ -34,11 +34,11 @@ model = "r-Pareto"
 work_dir = "SimData/"
 if (!dir.exists(work_dir)) {dir.create(work_dir)}
 
-sel.pairs = obs_extdep.emp = risk = weight_fun = dWeight_fun = NULL
+sel.pairs = train_extdep.emp = risk = weight_fun = dWeight_fun = NULL
 ################################################################################
 # Simulate data
 phi = 0.2; kappa = 1
-use_existing_dat = F # T for using provided existing data
+use_existing_dat = T # T for using provided existing data
 if (use_existing_dat) {
   # Download the data from https://zenodo.org/records/15459157, and place it in SimData/.
   # WARNING:The whole script requires approximately 6GB memory using provided data.
@@ -51,8 +51,9 @@ if (use_existing_dat) {
   n = (1/ds+1)^2
 }
 
+
 # WARNING: data generation using max functional is emteremely slow for high dimension
-risk_type = "sum"           # "max", "sum", or "site"
+risk_type = "site"           # "max", "sum", or "site"
 if (model %in% c("r-Pareto", "AI")) {
   site.index = NULL
   if (risk_type == "max") {
@@ -61,10 +62,10 @@ if (model %in% c("r-Pareto", "AI")) {
   } else if (risk_type == "sum") {
     risk_fun = risk_type
   } else if (risk_type == "site") {
-    if (use_existing_dat) { site.index = 5000 } else { site.index = round(n/2) }
     risk_fun = function(rep) { rep[1] }
   }
 }
+if (use_existing_dat) { site.index = 5000 } else { site.index = round(n/2) }
 
 # RNGkind(sample.kind = "Rounding")
 space_seed = 7
@@ -91,43 +92,49 @@ df_data = df[,3:ncol(df)]
 # Model fitting
 
 # RNGkind(sample.kind = "Rounding")
-seedn1 = 1
+seedn1 = 12345
 set.seed(seedn1)
 # size of the training set
-if (nrow(df_loc) >= 500) {
-  D_obs = 500
+if (nrow(df_loc) >= 1000) {
+  D_obs = 1000
+  D_train = 800
 } else {
   D_obs = nrow(df_loc)
+  D_train = floor(0.8*D_obs)
 }
+
 
 if (risk_type == "site") {
   # In this case, we include the site of interest in the observation set 
   # In this way, we no longer need to include the site index for deepspat_ext
-  sam1 <- c(site.index, sample((1:nrow(df))[-site.index], D_obs-1))
+  sam0 <- c(site.index, sample((1:nrow(df))[-site.index], D_obs-1))
+  sam1 = c(site.index, sample(sam0[-1], D_train-1))
 } else {
-  sam1 <- sample(1:nrow(df), D_obs)
+  sam0 <- sample(1:nrow(df), D_obs)
+  sam1 = sample(sam0, D_train)
 }
 
+df.obs = df[sam0,]
 
-obs_all <- df[sam1,]
-obs_loc = obs_all[,c("s1", "s2")]
-obs_data = obs_all[,3:ncol(df)]
+train_all <- df[sam1,]
+train_loc = train_all[,c("s1", "s2")]
+train_data = train_all[,3:ncol(df)]
 
 q <- 0.95; q1 <- 0.95
 
 
 # functional exceedances
-rexceed_obj = rexceed(obs_data, risk_fun)
-obs_exc = rexceed_obj$rep_exc
+rexceed_obj = rexceed(train_data, risk_fun, q)
+train_exc = rexceed_obj$rep_exc
 threshold = rexceed_obj$threshold
-# obs_func_risk = apply(obs_data, 2, risk_fun)
-# threshold <- quantile(obs_func_risk, q)
-# id_exc = which(obs_func_risk > threshold)
-# obs_exc <- as.matrix(obs_data[,id_exc])
+# train_func_risk = apply(train_data, 2, risk_fun)
+# threshold <- quantile(train_func_risk, q)
+# id_exc = which(train_func_risk > threshold)
+# train_exc <- as.matrix(train_data[,id_exc])
 
 
-obs_exc_all <- cbind(obs_loc, obs_exc) %>% as.data.frame() # 
-names(obs_exc_all) = c("s1", "s2", paste0("z", 1:(ncol(obs_exc_all)-2)))
+train_exc_all <- cbind(train_loc, train_exc) %>% as.data.frame() # 
+names(train_exc_all) = c("s1", "s2", paste0("z", 1:(ncol(train_exc_all)-2)))
 
 
 method = "GS" # GS for GSM inference method, EC for wLS inference method 
@@ -137,19 +144,19 @@ dtype = "float64"
 
 
 if (method == "EC") {
-  obs_extdep_odist.emp = emp_extdep_est(obs_data, obs_loc, model, risk_fun, q, q1)
-  obs_extdep.emp = 2 - obs_extdep_odist.emp[,1]
-  if (sum(is.na(obs_extdep.emp)) != 0) {
+  train_extdep_odist.emp = emp_extdep_est(train_data, train_loc, model, risk_fun, q, q1)
+  train_extdep.emp = 2 - train_extdep_odist.emp[,1]
+  if (sum(is.na(train_extdep.emp)) != 0) {
     stop("WARNING: NaN in empirical extremal dependence measure.")
   }
 } else if (method == "GS") {
   weight_fun = WEIGHTS(risk_type, xi0, weight_type =1)$weight_fun
   dWeight_fun = WEIGHTS(risk_type, xi0, weight_type =1)$dWeight_fun
 }
-stplen = c(0.1, 0.05, 0.01)
+stplen = c(0.1, 0.1, 0.05, 0.1)
 
 ## Set up warping layers
-layer_structure = "_layer1"
+layer_structure = "_layer3"
 
 r1 <- 50L
 if (layer_structure == "_layer1") {
@@ -174,21 +181,22 @@ if (layer_structure == "_layer1") {
               RBF_block(2L, dtype = dtype))
 }  
 
-d1 <- deepspat_ext(f = as.formula(paste(paste(paste0("z", 1:(ncol(obs_exc_all)-2)), collapse= "+"), "~ s1 + s2 -1")),
-                   data = obs_exc_all,
+d1 <- deepspat_ext(f = as.formula(paste(paste(paste0("z", 1:(ncol(train_exc_all)-2)), collapse= "+"), "~ s1 + s2 -1")),
+                   data = train_exc_all,
                    layers = layers,
                    method = method,
                    family = family,
                    dtype = dtype,
                    nsteps = 50L, nsteps_pre = 50L,
                    par_init = initvars(),
-                   learn_rates = init_learn_rates(eta_mean = stplen[1], eta_mean2 = stplen[2], vario = stplen[3]),
+                   learn_rates = init_learn_rates(eta_mean = stplen[1], eta_mean2 = stplen[2], vario = stplen[3], LFTpars = stplen[4]),
                    sel.pairs = sel.pairs,
-                   extdep.emp = obs_extdep.emp,
+                   extdep.emp = train_extdep.emp,
                    risk = risk_fun,
                    weight_fun = weight_fun,
                    dWeight_fun = dWeight_fun,
-                   thre = threshold
+                   thre = threshold,
+                   alpha = 3
 )
 
 
@@ -248,9 +256,9 @@ if (use_existing_dat) {
            s2c = as.integer(round(s2*100)))
   checkers0 <- polygons_from_points(df0, every = 3)
   count <- length(unique(checkers0$id))
-  grid0.chess <- (ggplot(checkers0) + geom_polygon(aes(x, y, group = id,
+  grid0.chess <- ggplot(checkers0) + geom_polygon(aes(x, y, group = id,
                                                        fill = as.logical((id + floor((id-0.5)/sqrt(count))) %% 2)), colour="black") +
-                    scale_fill_grey(start = 0.1, end = 0.9) + theme_bw())  +
+                    scale_fill_grey(start = 0.1, end = 0.9) + theme_bw()  +
     guides(fill="none", alpha = FALSE) +
     xlab(expression(f[n1])) + ylab(expression(f[n2]))  + coord_fixed(ratio = 1)  +
     theme(text = element_text(size=20),
@@ -375,22 +383,22 @@ if (use_existing_dat) {
   
   # ---------
   # pairwise CEPs against distance
-  obs_loc.rescaled = predict.deepspat_ext(d1, obs_loc, family, dtype = dtype)$srescaled
-  obs_loc.warped = as.matrix(d1$swarped)
+  train_loc.rescaled = predict.deepspat_ext(d1, train_loc, family, dtype = dtype)$srescaled
+  train_loc.warped = as.matrix(d1$swarped)
   
   
-  dist_obs = rdist(obs_loc.rescaled); dist_warped = rdist(obs_loc.warped)
-  D0 = nrow(obs_loc.rescaled)
-  dist_obs.pairs = dist_warped.pairs = numeric(length = (D0-1)*D0/2)
+  dist_train = rdist(train_loc.rescaled); dist_warped = rdist(train_loc.warped)
+  D0 = nrow(train_loc.rescaled)
+  dist_train.pairs = dist_warped.pairs = numeric(length = (D0-1)*D0/2)
   k=1
   for (i in 1:(D0-1)) { for (j in (i+1):D0) {
-    dist_obs.pairs[k] = dist_obs[i,j]; dist_warped.pairs[k] = dist_warped[i,j]
+    dist_train.pairs[k] = dist_train[i,j]; dist_warped.pairs[k] = dist_warped[i,j]
     k=k+1
   }}
   
-  obs_extdep_odist.emp = emp_extdep_est(obs_data, obs_loc, model, risk_fun, q, q1)
-  df_cloud = data.frame(CEP=obs_extdep_odist.emp[,1], 
-                        distance_o=dist_obs.pairs,
+  train_extdep_odist.emp = emp_extdep_est(train_data, train_loc, model, risk_fun, q, q1)
+  df_cloud = data.frame(CEP=train_extdep_odist.emp[,1], 
+                        distance_o=dist_train.pairs,
                         distance_w=dist_warped.pairs)
   str(df_cloud)             
   
