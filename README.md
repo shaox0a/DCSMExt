@@ -128,17 +128,6 @@ install.packages("contoureR")
 
 `contoureR` is mainly available for older R versions (for example, R 4.3.2). If you are using a newer version of R (for example, R 4.5.x), the package may need to be installed from source. On Windows, this usually requires Rtools.
 
-For newer R versions, Rtools can be installed from:
-
-[https://cran.r-project.org/bin/windows/Rtools/rtools45/rtools.html](https://cran.r-project.org/bin/windows/Rtools/rtools45/rtools.html)
-
-To verify that Rtools has been installed correctly, run:
-
-```r
-Sys.which("make")
-Sys.which("g++")
-```
-
 If needed, you may try installing `contoureR` with:
 
 ```r
