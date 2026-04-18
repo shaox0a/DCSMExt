@@ -65,20 +65,6 @@ reticulate::virtualenv_create(
 )
 ```
 
-### Note for Windows users
-
-On Windows, `reticulate::install_python()` may require Git to be installed first.
-
-Git can be downloaded from:
-
-[https://git-scm.com/install/windows](https://git-scm.com/install/windows)
-
-During installation, choose:
-
-**“Git from the command line and also from 3rd-party software”**
-
-so that Git is automatically added to your system `PATH`.
-
 ### Step 2. Restart the R session and install TensorFlow-related Python packages
 
 After creating the virtual environment, **restart the R session**. Then run:
