@@ -113,24 +113,6 @@ install.packages(c(
 ))
 ```
 
-Then load them:
-
-```r
-library(tensorflow)
-library(keras)
-library(tfprobability)
-library(dplyr)
-library(fields)
-library(ggplot2)
-library(ggpubr)
-library(ggnewscale)
-library(elevatr)
-library(RColorBrewer)
-library(this.path)
-library(gridExtra)
-library(viridis)
-```
-
 ## 3. Optional packages for reproducing UK precipitation figures
 
 The packages `maps` and `contoureR` are only needed for reproducing the plots in the UK precipitation application. If you do not need to reproduce those figures, you may skip this section.
