@@ -37,7 +37,6 @@ Instead, we recommend that users follow the setup steps in `reproduce_prepare.R`
 
 - Git
 - Rtools
-- version-specific R package installation
 
 The current program has been tested using the setup specified in `reproduce_prepare.R`, namely:
 
