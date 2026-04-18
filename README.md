@@ -146,7 +146,6 @@ After the environment is set up, run:
 library(reticulate)
 library(tensorflow)
 
-reticulate::use_virtualenv("dcsmext", required = TRUE)
 py_config()
 tf$constant("TensorFlow is available")
 ```
