@@ -160,7 +160,9 @@ deepspat_ext <- function(f, data,
     sel.pairs_tf <- tf$constant(sel.pairs, dtype = tf$int32)
     sel.pairs_tf <- tf$expand_dims(sel.pairs_tf, axis = 2L) 
     
-    trainvario = (tf$optimizers$Adam(learn_rates$vario))$minimize
+    trainvario = function(loss_fn, var_list)
+      train_step(loss_fn, var_list, tf$optimizers$Adam(learn_rates$vario))
+    # trainvario = (tf$optimizers$Adam(learn_rates$vario))$minimize
     
     Objective <- rep(0, nsteps*2)
     
@@ -314,7 +316,10 @@ deepspat_ext <- function(f, data,
     sel.pairs_tf <- tf$constant(sel.pairs, dtype = tf$int32)
     sel.pairs_tf <- tf$expand_dims(sel.pairs_tf, axis = 2L) 
     
-    trainvario = (tf$optimizers$Adam(learn_rates$vario))$minimize
+    # trainvario = (tf$optimizers$Adam(learn_rates$vario))$minimize
+    trainvario <- function(loss_fn, var_list) {
+      train_step(loss_fn, var_list, tf$optimizers$Adam(learn_rates$vario))
+    }
     
     nLFTlayers <- sum(sapply(layers, function(l) l$name) == "LFT")
     LFTidx <- which(sapply(layers, function(l) l$name) == "LFT")
@@ -328,16 +333,21 @@ deepspat_ext <- function(f, data,
     
     opt_eta <- (nlayers > 1) & (nLFTlayers < nlayers)
     if(opt_eta){
-      traineta_mean = (tf$optimizers$Adam(learn_rates$eta_mean))$minimize
-      if (nRBF1layers > 0 & nRBF2layers > 0) 
-        traineta_mean2 = (tf$optimizers$Adam(learn_rates$eta_mean2))$minimize
+      traineta_mean = function(loss_fn, var_list)
+        train_step(loss_fn, var_list, tf$optimizers$Adam(learn_rates$eta_mean))
+      # traineta_mean = (tf$optimizers$Adam(learn_rates$eta_mean))$minimize
+      if (nRBF1layers > 0 & nRBF2layers > 0)
+        traineta_mean2 = function(loss_fn, var_list)
+          train_step(loss_fn, var_list, tf$optimizers$Adam(learn_rates$eta_mean2))
+      # traineta_mean2 = (tf$optimizers$Adam(learn_rates$eta_mean2))$minimize
     }
     
     if(nLFTlayers > 0) {
-      # if (default_weight) {  }
-      a_tf = layers[[LFTidx]]$pars
-      trainLFTpars <- (tf$optimizers$Adam(learn_rates$LFTpars))$minimize # 
-    } else {a_tf = a_path = NULL}
+      a_tf <- layers[[LFTidx]]$pars
+      trainLFTpars <- function(loss_fn, var_list)
+        train_step(loss_fn, var_list, tf$optimizers$Adam(learn_rates$LFTpars))
+      # trainLFTpars <- (tf$optimizers$Adam(learn_rates$LFTpars))$minimize #
+    } else {a_tf <- NULL}
     
     
     pre_bool = c(nRBF1layers > 0, nRBF2layers > 0, nLFTlayers > 0)
