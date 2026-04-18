@@ -1,11 +1,9 @@
 rm(list = ls())
 
-.libPaths("/home/shaox0a/R/x86_64-pc-linux-gnu-library/4.3")
-Sys.setenv(RETICULATE_PYTHON = "/usr/local/bin/python3.7")
-
 setwd(this.path::here())
 
 library(tensorflow)
+library(keras)
 library(tfprobability)
 library(dplyr)
 library(fields)
@@ -20,7 +18,7 @@ source("Functions/Plot_functions.R")
 source("Functions/NMLL_ext.R")
 source("Functions/deepspat_ext_main.R")
 source("Functions/predict.deepspat_ext.R")
-
+source("Functions/train_step.R")
 
 ################################################################################
 # data generating architecture, it can also be: 

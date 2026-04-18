@@ -1,7 +1,5 @@
 rm(list = ls())
 
-.libPaths("/home/shaox0a/R/x86_64-pc-linux-gnu-library/4.3")
-Sys.setenv(RETICULATE_PYTHON = "/usr/local/bin/python3.7")
 
 setwd(this.path::here())
 
@@ -14,7 +12,6 @@ library(fields)
 library(maps)
 
 
-
 # adapt to tf2
 source("Functions/Aux_functions.R")
 source("Functions/Emp_functions.R")
@@ -25,6 +22,7 @@ source("Functions/NMLL_ext.R")
 source("Functions/deepspat_ext_main.R")
 source("Functions/predict.deepspat_ext.R")
 source("Functions/save_and_load.R")
+source("Functions/train_step.R")
 
 ################################################################################
 # load data
@@ -337,6 +335,7 @@ library(ggpubr)
 library(ggnewscale)
 library(grid)
 library(gridExtra)
+library(viridis)
 pic_path0 = "AppData/Pic/"
 if (!dir.exists(pic_path0)) {dir.create(pic_path0)}
 pic_path = paste0(pic_path0, risk_type, "/")
