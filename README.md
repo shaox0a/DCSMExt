@@ -13,7 +13,7 @@ The folder `Scripts&Codes/` contains:
 - `Functions/`: functions used by the main scripts
 - `application_UKpr.R`: script for the UK precipitation data application
 - `simulation.R`: script for a simulation demo
-- `reproduce_prepare.R`: helper script for setting up the software environment required to reproduce the results
+- `reproduce_prepare.R`: a reference script used to test the code on a fresh Windows machine
 
 Some required datasets and precomputed objects are not included directly in this repository and must be downloaded from Zenodo:
 
@@ -25,12 +25,19 @@ To help users prepare a reproducible runtime environment, we provide the script:
 
 - `reproduce_prepare.R`
 
-This script assists with:
+This script was used to test the code on a fresh Windows machine. It is included as a reference for environment setup, rather than as a one-click installation script for all users.
 
-- setting up the Python environment,
-- installing the required TensorFlow/Keras stack,
-- installing the required R packages, and
-- checking optional plotting dependencies for the UK precipitation application.
+Because users may have different local machine settings (for example, different R versions or missing system tools), we do **not** recommend directly running:
+
+```r
+source("reproduce_prepare.R")
+```
+
+Instead, we recommend that users follow the setup steps in `reproduce_prepare.R` and adapt them when needed to match their own system configuration. In particular, some components may require manual setup, such as:
+
+- Git
+- Rtools
+- version-specific R package installation
 
 The current program has been tested using the setup specified in `reproduce_prepare.R`, namely:
 
@@ -39,19 +46,9 @@ The current program has been tested using the setup specified in `reproduce_prep
 - **Keras 2.15.0**
 - **TensorFlow Probability 0.15.1**
 
-### Recommended setup procedure
+### Environment setup workflow
 
-Open R (or RStudio) in the `Scripts&Codes/` directory and run:
-
-```r
-source("reproduce_prepare.R")
-```
-
-This script follows the recommended setup order used in our reproducibility workflow.
-
-### Manual installation
-
-If you prefer to install everything step by step, follow the same order as in `reproduce_prepare.R`.
+Below we provide a setup workflow similar to the one used in `reproduce_prepare.R`.
 
 ### Step 1. Set up the Python environment
 
