@@ -13,6 +13,7 @@ The folder `Scripts&Codes/` contains:
 - `Functions/`: functions used by the main scripts
 - `application_UKpr.R`: script for the UK precipitation data application
 - `simulation.R`: script for a simulation demo
+- `reproduce_prepare.R`: helper script for setting up the software environment required to reproduce the results
 
 Some required datasets and precomputed objects are not included directly in this repository and must be downloaded from Zenodo:
 
@@ -20,20 +21,96 @@ Some required datasets and precomputed objects are not included directly in this
 
 ## 2. Installation
 
-The current program has been tested with:
+To help users prepare a reproducible runtime environment, we provide the script:
 
-- **Python 3.7.11**
-- **TensorFlow 2.11.0**
+- `reproduce_prepare.R`
 
-Some newer TensorFlow versions are not compatible with the current implementation. In particular, **TensorFlow 2.19.0 is not compatible**.
+This script assists with:
 
-Running the scripts requires:
+- setting up the Python environment,
+- installing the required TensorFlow/Keras stack,
+- installing the required R packages, and
+- checking optional plotting dependencies for the UK precipitation application.
 
-- Python
-- TensorFlow
-- TensorFlow-related packages in R
+The current program has been tested using the setup specified in `reproduce_prepare.R`, namely:
 
-### Install the required R packages
+- **Python 3.11**
+- **TensorFlow 2.19.0**
+- **Keras 2.15.0**
+- **TensorFlow Probability 0.15.1**
+
+### Recommended setup procedure
+
+Open R (or RStudio) in the `Scripts&Codes/` directory and run:
+
+```r
+source("reproduce_prepare.R")
+```
+
+This script follows the recommended setup order used in our reproducibility workflow.
+
+### Manual installation
+
+If you prefer to install everything step by step, follow the same order as in `reproduce_prepare.R`.
+
+### Step 1. Set up the Python environment
+
+```r
+install.packages("reticulate")
+library(reticulate)
+
+py_version <- "3.11:latest"
+path_to_python <- reticulate::install_python(version = py_version)
+
+reticulate::virtualenv_create(
+  envname = "dcsmext",
+  python = path_to_python,
+  version = py_version
+)
+```
+
+### Note for Windows users
+
+On Windows, `reticulate::install_python()` may require Git to be installed first.
+
+Git can be downloaded from:
+
+[https://git-scm.com/install/windows](https://git-scm.com/install/windows)
+
+During installation, choose:
+
+**“Git from the command line and also from 3rd-party software”**
+
+so that Git is automatically added to your system `PATH`.
+
+### Step 2. Restart the R session and install TensorFlow-related Python packages
+
+After creating the virtual environment, **restart the R session**. Then run:
+
+```r
+library(reticulate)
+reticulate::use_virtualenv("dcsmext", required = TRUE)
+
+tensorflow::install_tensorflow(
+  method = "virtualenv",
+  envname = "dcsmext",
+  version = "2.19.0"
+)
+
+keras::install_keras(
+  method = "virtualenv",
+  envname = "dcsmext",
+  version = "2.15.0"
+)
+
+reticulate::virtualenv_install(
+  envname = "dcsmext",
+  packages = "tensorflow-probability",
+  version = "0.15.1"
+)
+```
+
+### Step 3. Install the required R packages
 
 ```r
 install.packages(c(
@@ -43,67 +120,87 @@ install.packages(c(
   "tfprobability",
   "dplyr",
   "fields",
-  "maps",
   "ggplot2",
   "ggpubr",
   "ggnewscale",
   "elevatr",
-  "contoureR",
   "RColorBrewer",
   "this.path",
-  "gridExtra"
+  "gridExtra",
+  "viridis"
 ))
 ```
 
-### Create a Python environment and install TensorFlow
-
-Run the following commands in R:
+Then load them:
 
 ```r
-library(reticulate)
-
-py_version <- "3.7.11"
-path_to_python <- reticulate::install_python(version = py_version)
-
-reticulate::virtualenv_create(
-  envname = "dcsmext",
-  python = path_to_python,
-  version = py_version
-)
-
-reticulate::use_virtualenv("dcsmext", required = TRUE)
-
-tensorflow::install_tensorflow(
-  method = "virtualenv",
-  envname = "dcsmext",
-  version = "2.11.0"
-)
-
-keras::install_keras(
-  method = "virtualenv",
-  envname = "dcsmext",
-  version = "2.11.0"
-)
-
-reticulate::virtualenv_install(
-  envname = "dcsmext",
-  packages = "tensorflow-probability"
-)
+library(tensorflow)
+library(keras)
+library(tfprobability)
+library(dplyr)
+library(fields)
+library(ggplot2)
+library(ggpubr)
+library(ggnewscale)
+library(elevatr)
+library(RColorBrewer)
+library(this.path)
+library(gridExtra)
+library(viridis)
 ```
 
-### Check that the installation works
+## 3. Optional packages for reproducing UK precipitation figures
+
+The packages `maps` and `contoureR` are only needed for reproducing the plots in the UK precipitation application. If you do not need to reproduce those figures, you may skip this section.
+
+Install them with:
+
+```r
+install.packages("maps")
+install.packages("contoureR")
+```
+
+### Note on `contoureR`
+
+`contoureR` is mainly available for older R versions (for example, R 4.3.2). If you are using a newer version of R (for example, R 4.5.x), the package may need to be installed from source. On Windows, this usually requires Rtools.
+
+For newer R versions, Rtools can be installed from:
+
+[https://cran.r-project.org/bin/windows/Rtools/rtools45/rtools.html](https://cran.r-project.org/bin/windows/Rtools/rtools45/rtools.html)
+
+To verify that Rtools has been installed correctly, run:
+
+```r
+Sys.which("make")
+Sys.which("g++")
+```
+
+If needed, you may try installing `contoureR` with:
+
+```r
+install.packages(
+  "contoureR",
+  repos = c("https://cran.r-universe.dev", "https://cloud.r-project.org")
+)
+library(contoureR)
+```
+
+## 4. Check that the installation works
+
+After the environment is set up, run:
 
 ```r
 library(reticulate)
 library(tensorflow)
 
+reticulate::use_virtualenv("dcsmext", required = TRUE)
 py_config()
 tf$constant("TensorFlow is available")
 ```
 
 If these commands run without error, the environment is ready.
 
-## 3. Getting started
+## 5. Getting started
 
 ### Simulation demo
 
