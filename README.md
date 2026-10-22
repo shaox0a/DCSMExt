@@ -1,191 +1,95 @@
-# Supplementary Program and Dataset
+Deep Compositional Spatial Models
+=================================
 
-This repository contains the supplementary program and dataset for the manuscript:
+**Note: This version uses TensorFlow v2 -- for the original TensorFlow v1 version please download Release 0.2.0**
 
-**"Modeling Nonstationary Extremal Dependence via Deep Spatial Deformations"**
+Deep compositional spatial models are standard spatial covariance models coupled with an injective warping function of the spatial domain. The warping function is constructed through a composition of multiple elemental injective functions in a deep-learning framework. The package implements two cases for the univariate setting; first, when these warping functions are known up to some weights that need to be estimated, and, second, when the weights in each layer are random. In the multivariate setting only the former case is available.  Estimation and inference is done using TensorFlow, which makes use of graphics processing units. 
 
-## 1. Overview
+<img align="right" src="https://andrewzm.files.wordpress.com/2020/04/awu_rbf_lft_2d.png?w=603&h=&zoom=2" alt="drawing" width="50%"/>
 
-The folder `Scripts&Codes/` contains:
 
-- `AppData/`: application data and modelling results
-- `SimData/`: simulated data and modelling results
-- `Functions/`: functions used by the main scripts
-- `application_UKpr.R`: script for the UK precipitation data application
-- `simulation.R`: script for a simulation demo
-- `reproduce_prepare.R`: a reference script used to test the code on a fresh Windows machine
+Resources
+---------
 
-Some required datasets and precomputed objects are not included directly in this repository and must be downloaded from Zenodo:
+A number of manuscripts explain the theory and methodology behind the deep compositional
+spatial models in details, see [here](https://doi.org/10.1080/01621459.2021.1887741)
+for the univariate setting, [here](https://www.jstor.org/stable/27164242) for the multivariate setting, [here](https://doi.org/10.1016/j.spasta.2023.100742) 
+for the spatio-temporal setting, and [here](https://doi.org/10.48550/arXiv.2505.12548) 
+for the extremes.
 
-[https://zenodo.org/records/15459157](https://zenodo.org/records/15459157)
+An informal blog post summarising the manuscript concerning the univariate setting is available [here](https://andrewzm.wordpress.com/2019/06/13/deep-compositional-spatial-models/).
 
-## 2. Installation
+Installation Instructions
+-------------------------
 
-To help users prepare a reproducible runtime environment, we provide the script:
+This is a guide to install all dependencies (such as tensorflow, keras, tfp) for the package, from a fresh environment.
 
-- `reproduce_prepare.R`
-
-This script was used to test the code on a fresh Windows machine. It is included as a reference for environment setup, rather than as a one-click installation script for all users.
-
-Because users may have different local machine settings (for example, different R versions or missing system tools), we do **not** recommend directly running:
+First, install the latest CRAN source version of `deepspat` if it is missing or outdated.
 
 ```r
-source("reproduce_prepare.R")
+if (!requireNamespace("deepspat", quietly = TRUE) ||
+    "deepspat" %in% rownames(old.packages(type = "source"))) {
+  install.packages("deepspat", type = "source")
+}
+library(deepspat)
 ```
 
-Instead, we recommend that users follow the setup steps in `reproduce_prepare.R` and adapt them when needed to match their own system configuration. In particular, some components may require manual setup, such as:
-
-- Git
-- Rtools
-
-The current program has been tested using the setup specified in `reproduce_prepare.R`, namely:
-
-- **Python 3.11**
-- **TensorFlow 2.19.0**
-- **Keras 2.15.0**
-- **TensorFlow Probability 0.15.1**
-
-### Environment setup workflow
-
-Below we provide a setup workflow similar to the one used in `reproduce_prepare.R`.
-
-### Step 1. Set up the Python environment
+Then, create a virtual environment.
 
 ```r
-install.packages("reticulate")
+## install reticulate first if needed
+## install.packages("reticulate")
 library(reticulate)
+py_version <- "3.12:latest"
+envname <- file.path(getwd(), "deepspat_venv")
+path_to_python <- virtualenv_starter("3.12")
+if (is.null(path_to_python)) {
+  path_to_python <- install_python(version = py_version)
+}
 
-py_version <- "3.11:latest"
-path_to_python <- reticulate::install_python(version = py_version)
-
-reticulate::virtualenv_create(
-  envname = "dcsmext",
+virtualenv_create(
+  envname = envname,
   python = path_to_python,
   version = py_version
 )
+use_virtualenv(envname, required = TRUE)
 ```
 
-### Step 2. Restart the R session and install TensorFlow-related Python packages
+This reuses an existing Python 3.12 installation when available and only installs Python when none is found. Avoid forcing `install_python()`, as this may overwrite an existing reticulate-managed Python installation.
 
-After creating the virtual environment, **restart the R session**. Then run:
-
+Then, install tensorflow
 ```r
-library(reticulate)
-reticulate::use_virtualenv("dcsmext", required = TRUE)
-
-tensorflow::install_tensorflow(
-  method = "virtualenv",
-  envname = "dcsmext",
-  version = "2.19.0"
-)
-
-keras::install_keras(
-  method = "virtualenv",
-  envname = "dcsmext",
-  version = "2.15.0"
-)
-
-reticulate::virtualenv_install(
-  envname = "dcsmext",
-  packages = "tensorflow-probability",
-  version = "0.15.1"
+virtualenv_install(
+  envname = envname,
+  packages = "tensorflow==2.18.0"
 )
 ```
 
-### Step 3. Install the required R packages
 
+Install keras, tfprobability, and scipy
 ```r
-install.packages(c(
-  "reticulate",
-  "tensorflow",
-  "keras",
-  "tfprobability",
-  "dplyr",
-  "fields",
-  "ggplot2",
-  "ggpubr",
-  "ggnewscale",
-  "elevatr",
-  "RColorBrewer",
-  "this.path",
-  "gridExtra",
-  "viridis"
-))
-```
-
-## 3. Optional packages for reproducing UK precipitation figures
-
-The packages `maps` and `contoureR` are only needed for reproducing the plots in the UK precipitation application. If you do not need to reproduce those figures, you may skip this section.
-
-Install them with:
-
-```r
-install.packages("maps")
-install.packages("contoureR")
-```
-
-### Note on `contoureR`
-
-`contoureR` is mainly available for older R versions (for example, R 4.3.2). If you are using a newer version of R (for example, R 4.5.x), the package may need to be installed from source. On Windows, this usually requires Rtools.
-
-If needed, you may try installing `contoureR` with:
-
-```r
-install.packages(
-  "contoureR",
-  repos = c("https://cran.r-universe.dev", "https://cloud.r-project.org")
+virtualenv_install(
+  envname = envname,
+  packages = c(
+    "tensorflow-probability==0.25.0",
+    "tf-keras==2.18.0",
+    "scipy"
+  )
 )
-library(contoureR)
-```
 
-## 4. Check that the installation works
-
-After the environment is set up, run:
-
-```r
-library(reticulate)
-library(tensorflow)
-
+# The Python path shown below should point to `deepspat_venv`.
 py_config()
-tf$constant("TensorFlow is available")
 ```
 
-If these commands run without error, the environment is ready.
-
-## 5. Getting started
-
-### Simulation demo
-
-To run `simulation.R`, download the following files from Zenodo and place them directly in `Scripts&Codes/SimData/`:
-
-- `r-Pareto_max+AWU_RBF_2D_7+5000_10201_range(0.2).rds`
-- `r-Pareto_site+AWU_RBF_2D_7+5000_10201_range(0.2).rds`
-- `r-Pareto_sum+AWU_RBF_2D_7+5000_10201_range(0.2).rds`
-
-These files are provided because simulating r-Pareto processes under the max-functional can be time-consuming.
-
-Then run:
-
+Check by constructing the warping layers
 ```r
-source("simulation.R")
+layers <- c(AWU(r = 50L, dim = 1L, grad = 50, lims = c(-0.5, 0.5)),
+            AWU(r = 50L, dim = 2L, grad = 50, lims = c(-0.5, 0.5)),
+            RBF_block(),
+            LFT())
 ```
 
-### UK precipitation application
+Reproducible Code
+-----------------
 
-To run `application_UKpr.R`, download the following file from Zenodo and place it directly in `Scripts&Codes/AppData/`:
-
-- `UKpr_waleswindow.rds`
-
-The file
-
-- `UKpr_r-Pareto_max_empextdep.rds`
-
-may also be downloaded from Zenodo and placed in `AppData/`, but it can also be generated within `application_UKpr.R`.
-
-Then run:
-
-```r
-source("application_UKpr.R")
-```
-
-Please make sure that downloaded files are placed **directly inside** `AppData/` and `SimData/`, rather than inside an additional nested download folder.
+Code using this package for reproducing the results shown in the manuscript describing the univariate setting is available in the [supplemental material of our first article](https://doi.org/10.1080/01621459.2021.1887741). Code for the results shown in manuscript describing the multivariate setting is available [here](https://github.com/quanvu17/deepspat_multivar). 
